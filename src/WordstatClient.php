@@ -42,8 +42,13 @@ final readonly class WordstatClient implements WordstatClientInterface
             $status = $response->getStatus();
 
             if ($status >= 400) {
-                $data = json_decode($body, true);
-                $msg = $data['error_description'] ?? $data['error']['message'] ?? "HTTP $status error";
+                try {
+                    $data = json_decode($body, true, flags: JSON_THROW_ON_ERROR);
+
+                    $msg = $data['error_description'] ?? $data['error']['message'] ?? null;
+                } catch (\JsonException) {
+                    $msg = $body;
+                }
 
                 if ($status === 429) {
                     throw new WordstatRateLimitException($msg);

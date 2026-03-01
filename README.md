@@ -5,7 +5,7 @@
 ## Возможности
 
 - **Полное покрытие API**: поддерживает эндпоинты `/getRegionsTree`, `/topRequests`, `/dynamics`, `/regions` и `/userInfo`.
-- **Строгая типизация**: использует типизированные DTO-запросы и объекты ответов.
+- **Строгая типизация**: типизированные объекты ответов и enum-параметры.
 - **Гибкая фильтрация**: фильтрация по регионам, устройствам и временным периодам через удобные enum-классы.
 - **Пакетные запросы**: поддержка нескольких фраз в одном запросе к `/topRequests`.
 - **Пользовательские исключения**: чистая обработка ошибок с маппингом на структуры ошибок Yandex API, включая автоматическое определение Rate Limit.
@@ -37,9 +37,7 @@ composer require shanginn/yandex-wordstat
 use Shanginn\YandexWordstat\WordstatClient;
 use Shanginn\YandexWordstat\YandexWordstat;
 
-$oauthToken = getenv('YANDEX_OAUTH_TOKEN');
-
-$client = new WordstatClient($oauthToken);
+$client = new WordstatClient(getenv('YANDEX_OAUTH_TOKEN'));
 $wordstat = new YandexWordstat($client);
 ```
 
@@ -55,14 +53,13 @@ echo "Осталось запросов: {$userInfo->userInfo->dailyLimitRemaini
 ### 2. Популярные запросы
 
 ```php
-use Shanginn\YandexWordstat\Requests\TopRequestsRequest;
 use Shanginn\YandexWordstat\Enums\DeviceType;
 
-$result = $wordstat->topRequests(new TopRequestsRequest(
-    phrase: 'яндекс',
+$result = $wordstat->topRequests(
+    'яндекс',
     regions: [213, 2], // Москва и Санкт-Петербург
-    devices: [DeviceType::PHONE]
-));
+    devices: [DeviceType::PHONE],
+);
 
 echo "Всего запросов: {$result->totalCount}\n";
 foreach ($result->topRequests as $req) {
@@ -73,11 +70,9 @@ foreach ($result->topRequests as $req) {
 ### 3. Пакетный запрос для нескольких фраз
 
 ```php
-$results = $wordstat->topRequests(new TopRequestsRequest(
-    phrase: ['яндекс', 'гугл', 'mail']
-));
+// При передаче массива возвращается TopRequestsResult[]
+$results = $wordstat->topRequests(['яндекс', 'гугл', 'mail']);
 
-// При передаче массива фраз возвращается массив TopRequestsResult
 foreach ($results as $result) {
     echo "Фраза: {$result->requestPhrase}, показов: {$result->totalCount}\n";
 }
@@ -86,15 +81,14 @@ foreach ($results as $result) {
 ### 4. Динамика запросов
 
 ```php
-use Shanginn\YandexWordstat\Requests\DynamicsRequest;
 use Shanginn\YandexWordstat\Enums\DynamicsPeriod;
 
-$dynamics = $wordstat->dynamics(new DynamicsRequest(
+$dynamics = $wordstat->dynamics(
     phrase: 'яндекс',
     period: DynamicsPeriod::MONTHLY,
     fromDate: '2025-01-01',
-    toDate: '2025-03-31'
-));
+    toDate: '2025-03-31',
+);
 
 foreach ($dynamics->dynamics as $item) {
     echo "Дата: {$item->date} | Показы: {$item->count} | Доля: {$item->share}%\n";
@@ -104,13 +98,9 @@ foreach ($dynamics->dynamics as $item) {
 ### 5. Региональная статистика
 
 ```php
-use Shanginn\YandexWordstat\Requests\RegionsRequest;
 use Shanginn\YandexWordstat\Enums\RegionType;
 
-$regionsInfo = $wordstat->regions(new RegionsRequest(
-    phrase: 'яндекс',
-    regionType: RegionType::CITIES
-));
+$regionsInfo = $wordstat->regions('яндекс', regionType: RegionType::CITIES);
 
 foreach ($regionsInfo->regions as $region) {
     echo "Регион ID: {$region->regionId} | Показы: {$region->count} | Индекс интереса: {$region->affinityIndex}\n";
@@ -120,7 +110,6 @@ foreach ($regionsInfo->regions as $region) {
 ### 6. Дерево регионов
 
 ```php
-// Возвращает иерархическое дерево регионов Яндекса
 $tree = $wordstat->getRegionsTree();
 
 foreach ($tree as $country) {
@@ -133,12 +122,29 @@ foreach ($tree as $country) {
 
 ## Аутентификация
 
-Для работы с SDK необходим действующий OAuth-токен Яндекса с доступом к Wordstat API.
+Для работы с SDK необходим OAuth-токен Яндекса с доступом к Wordstat API.
+
+**[Подробная инструкция по получению токена →](../../wiki/oauth-token)**
+
+Краткий порядок действий:
+1. Создайте приложение на https://oauth.yandex.ru/client/new, выбрав доступ **Использование API Вордстата**.
+2. Подайте заявку на доступ к API в поддержку Яндекс Директа, указав логин и Client ID приложения.
+3. Авторизуйтесь по ссылке `https://oauth.yandex.ru/authorize?response_type=token&client_id=<client_id>` и сохраните выданный токен.
 
 Установите переменную окружения:
 
 ```bash
 export YANDEX_OAUTH_TOKEN=your_oauth_token_here
+```
+
+Проверить токен можно прямым curl-запросом:
+
+```bash
+curl -XPOST \
+  -H 'Content-type: application/json;charset=utf-8' \
+  -H 'Authorization: Bearer <your_oauth_token>' \
+  -d '{"phrase":"яндекс","regions":[213,2],"devices":["phone"]}' \
+  https://api.wordstat.yandex.net/v1/topRequests
 ```
 
 ## Доступные enum-классы
@@ -178,7 +184,7 @@ use Shanginn\YandexWordstat\Exceptions\WordstatApiErrorException;
 use Shanginn\YandexWordstat\Exceptions\WordstatException;
 
 try {
-    $result = $wordstat->topRequests(new TopRequestsRequest(phrase: 'яндекс'));
+    $result = $wordstat->topRequests('яндекс');
 } catch (WordstatRateLimitException $e) {
     // Превышен лимит запросов (HTTP 429)
     echo "Лимит запросов превышен. Повторите позже.\n";
