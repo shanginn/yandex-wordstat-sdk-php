@@ -46,12 +46,21 @@ class YandexWordstat
         ?array $regions = null,
         ?array $devices = null,
     ): array|TopRequestsResult {
-        $request = new TopRequestsRequest(
-            phrases: $phrase,
-            numPhrases: $numPhrases,
-            regions: $regions,
-            devices: $devices,
-        );
+        if (is_string($phrase)) {
+            $request = new TopRequestsRequest(
+                phrase: $phrase,
+                numPhrases: $numPhrases,
+                regions: $regions,
+                devices: $devices,
+            );
+        } else {
+            $request = new TopRequestsRequest(
+                phrases: $phrase,
+                numPhrases: $numPhrases,
+                regions: $regions,
+                devices: $devices,
+            );
+        }
 
         $json = $this->client->post('topRequests', $this->serializer->serialize($request));
         $data = json_decode($json, true);
